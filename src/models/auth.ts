@@ -6,10 +6,9 @@ export const roles = [
   'BUSINESS_OPS_MANAGER',
   'SYSTEM_ADMIN',
 ] as const
-
 export type Role = (typeof roles)[number]
 
-/** Role values currently emitted by the backend (single role per user). */
+/** Exact lowercase role values emitted by the backend. */
 export const rawBackendRoles = [
   'customer',
   'facility_staff',
@@ -17,10 +16,8 @@ export const rawBackendRoles = [
   'business_ops_manager',
   'system_admin',
 ] as const
-
 export type RawBackendRole = (typeof rawBackendRoles)[number]
 
-/** Explicit adapter from the backend's lowercase value to the FE role name. */
 export const backendRoleToRole: Record<RawBackendRole, Role> = {
   customer: 'CUSTOMER',
   facility_staff: 'FACILITY_STAFF',
@@ -34,13 +31,12 @@ export function normalizeBackendRole(role: string): Role | null {
   return backendRoleToRole[role as RawBackendRole]
 }
 
-/** Reserved for permissions supplied by the backend when RBAC is implemented. */
 export type Permission = string
-
 export interface AuthUser {
   id: string
   email: string
   name?: string
+  phoneNumber?: string
   roles: Role[]
   permissions: Permission[]
   assignedFacilityId?: string | null

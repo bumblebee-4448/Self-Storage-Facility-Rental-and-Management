@@ -1,53 +1,95 @@
 import { render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { routeObjects } from '@/routes/router'
+import { useAuthStore } from '@/stores/auth-store'
+import type { Role } from '@/models/auth'
 
-function renderRoute(path: string) {
+function renderRoute(path: string, role?: Role) {
+  useAuthStore.setState({
+    user: role
+      ? {
+          id: 'user-1',
+          email: 'person@example.com',
+          name: 'Test User',
+          roles: [role],
+          permissions: [],
+        }
+      : null,
+    status: role ? 'authenticated' : 'guest',
+    error: null,
+  })
   const router = createMemoryRouter(routeObjects, { initialEntries: [path] })
   return render(<RouterProvider router={router} />)
 }
 
-describe('application route layouts', () => {
+beforeEach(() =>
+  useAuthStore.setState({ user: null, status: 'guest', error: null }),
+)
+
+describe('application route layouts and access', () => {
   it('renders the landing page inside the public layout', () => {
     renderRoute('/')
-
-    expect(screen.getByRole('link', { name: /haven\./i })).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: /chỗ cho những điều/i }),
+      screen.getByRole('link', { name: 'Haven trang chủ' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /không gian lưu trữ linh hoạt cho mọi nhu cầu/i }),
     ).toBeInTheDocument()
   })
 
-  it('renders customer pages inside the customer layout', () => {
-    renderRoute('/account')
-
+  it('renders the customer account shell for a customer', async () => {
+    renderRoute('/account', 'CUSTOMER')
     expect(screen.getByText('Haven Storage')).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: 'Tài khoản khách hàng' }),
+      await screen.findByRole('heading', { name: /xin chào/i }),
     ).toBeInTheDocument()
   })
 
-  it('renders internal login without the portal sidebar', () => {
-    renderRoute('/portal/login')
-
+  it('redirects a guest from a protected customer route to customer login', async () => {
+    renderRoute('/account/profile')
     expect(
-      screen.getByRole('heading', { name: 'Đăng nhập nội bộ' }),
+      await screen.findByRole('heading', { name: 'Đăng nhập tài khoản' }),
     ).toBeInTheDocument()
-    expect(screen.queryByText('Không gian làm việc')).not.toBeInTheDocument()
+  })
+
+  it('protects reservation creation behind the customer login flow', async () => {
+    renderRoute('/reservations/new?facilityId=facility-1&storageUnitId=unit-1')
+    expect(
+      await screen.findByRole('heading', { name: 'Đăng nhập tài khoản' }),
+    ).toBeInTheDocument()
+  })
+
+  it('shows a forbidden page for an authenticated user with the wrong role', () => {
+    renderRoute('/portal/admin/users', 'BUSINESS_OPS_MANAGER')
+    expect(screen.getByText(/403 · Không có quyền/i)).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'Quản trị hệ thống' }),
+    ).not.toBeInTheDocument()
   })
 
   it.each([
-    ['/portal', 'Không gian làm việc'],
-    ['/portal/admin/users', 'Quản trị hệ thống'],
-    ['/portal/ops/reports', 'Vận hành doanh nghiệp'],
-    ['/portal/manager/facilities', 'Quản lý cơ sở'],
-    ['/portal/staff/units', 'Nhân viên cơ sở'],
-  ])('renders the portal placeholder for %s', (path, title) => {
-    renderRoute(path)
+    ['/portal/admin/users', 'SYSTEM_ADMIN', 'Quản trị hệ thống'],
+    ['/portal/ops/reports', 'BUSINESS_OPS_MANAGER', 'Vận hành doanh nghiệp'],
+    ['/portal/manager/facilities', 'FACILITY_MANAGER', 'Quản lý cơ sở'],
+    ['/portal/staff/units', 'FACILITY_STAFF', 'Nhân viên cơ sở'],
+  ] as const)(
+    'renders the role-specific workspace for %s',
+    (path, role, title) => {
+      renderRoute(path, role)
+      expect(screen.getByRole('heading', { name: title })).toBeInTheDocument()
+      expect(screen.getAllByText('Test User').length).toBeGreaterThan(0)
+    },
+  )
 
+  it('shows a loading state before protected navigation while session is checking', () => {
+    useAuthStore.setState({ user: null, status: 'checking', error: null })
+    const router = createMemoryRouter(routeObjects, {
+      initialEntries: ['/account'],
+    })
+    render(<RouterProvider router={router} />)
     expect(
-      screen.getByRole('navigation').previousElementSibling,
-    ).toHaveTextContent('Không gian làm việc')
-    expect(screen.getByRole('heading', { name: title })).toBeInTheDocument()
+      screen.getByRole('status', { name: 'Đang kiểm tra phiên' }),
+    ).toBeInTheDocument()
   })
 })
