@@ -5,6 +5,8 @@ import { PortalLayout } from '@/layouts/PortalLayout'
 import { PublicLayout } from '@/layouts/PublicLayout'
 import { PlaceholderPage } from '@/components/shared/PlaceholderPage'
 import { LandingPage } from '@/pages/LandingPage'
+import { CustomerLoginPage } from '@/pages/CustomerLoginPage'
+import { PortalLoginPage } from '@/pages/PortalLoginPage'
 import type { RouteObject } from 'react-router-dom'
 
 export const routeObjects: RouteObject[] = [
@@ -18,7 +20,7 @@ export const routeObjects: RouteObject[] = [
       },
       {
         path: '/auth/login',
-        element: <PlaceholderPage title="Đăng nhập khách hàng" />,
+        element: <CustomerLoginPage />,
       },
       {
         path: '/auth/register',
@@ -41,7 +43,7 @@ export const routeObjects: RouteObject[] = [
     path: '/portal/login',
     element: (
       <InternalLoginLayout>
-        <PlaceholderPage title="Đăng nhập nội bộ" />
+        <PortalLoginPage />
       </InternalLoginLayout>
     ),
   },

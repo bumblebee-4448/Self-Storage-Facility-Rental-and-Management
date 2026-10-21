@@ -7,7 +7,7 @@
 - Feature modules own their types, UI, and eventual API integration; shared UI stays small.
 - The API client sends cookies with requests. Browser storage is not used for authentication tokens.
 - Frontend access checks are a usability layer. The backend remains responsible for authorization on every API and resource.
-- Authentication core uses the real backend session API; authentication UI, RBAC, mock users, and business data remain outside this scope.
+- Authentication UI calls the existing backend session API through the Zustand auth store. RBAC, mock users, and business data remain outside this scope.
 
 ## Structure
 
@@ -17,7 +17,8 @@ src/
 ├── components/
 │   ├── providers/           # Application providers
 │   ├── shared/              # Reusable application-level UI
-│   └── ui/                  # shadcn/ui-compatible primitives
+│   ├── ui/                  # shadcn/ui-compatible primitives
+│   └── auth/                # Shared login form and post-login context notice
 ├── config/                  # Application configuration
 ├── layouts/                 # Public, customer, and internal portal shells
 ├── lib/utils.ts             # shadcn/ui class-name helper
@@ -63,9 +64,17 @@ Each eligible original request is retried at most once, and a retry retains the 
 
 `signIn()` and `signOut()` resolve with a discriminated result: `{ success: true, value }` or `{ success: false, error }`. Failed login results preserve normalized HTTP status and backend message code, including the distinction between 401 and 403. Logout HTTP 401 counts as successful local cleanup of an expired session; network and other server errors return failure. Neither result contains credentials or tokens.
 
+## Login experience
+
+Customer login is served at `/auth/login` inside `PublicLayout`; the shared internal login is at `/portal/login` inside `InternalLoginLayout`, without the portal sidebar. Both render `LoginForm`, which validates email and password with React Hook Form and Zod, then calls `useAuthStore.getState().signIn(credentials)`. That action uses the existing `POST /auth/login` service and credentialed Axios client. Only a successful action can navigate; the form never reads or displays token values, and browser storage is not used for credentials or session tokens. The application-level `AuthSessionInitializer` remains responsible for initial session bootstrap; the login pages only reflect its `checking`, `guest`, `authenticated`, and `error` states.
+
+After login, `src/utils/login-destination.ts` maps the normalized single role to its workspace: `CUSTOMER` to `/account`, `SYSTEM_ADMIN` to `/portal/admin`, `BUSINESS_OPS_MANAGER` to `/portal/ops`, `FACILITY_MANAGER` to `/portal/manager`, and `FACILITY_STAFF` to `/portal/staff`. Unknown or ambiguous role data fails closed. A login from the other entry point still follows the account's mapped destination and shows a short context notice there. This mapping only selects a destination; it does not authorize route access or replace server-side checks. The backend currently returns one role per user, so multi-role workspace selection and RBAC remain future work.
+
+Login errors are translated to safe Vietnamese messages by category: malformed requests, invalid credentials, forbidden accounts, network/CORS failures, timeouts, server failures, and unexpected errors remain distinguishable. Backend stack traces and raw error objects are not rendered. MSW tests exercise these paths with backend-shaped envelopes. Real browser login remains blocked/not verified because the existing CORS check for `http://localhost:5173` found HTTP 500 responses without credentialed CORS headers; no production credentials were used.
+
 Generation checks protect frontend state and request replay decisions, but an already in-flight backend response may still apply a `Set-Cookie` header after logout or a newer sign-in. The browser controls cookie application; the frontend cannot cancel a response that the server has already produced. This limitation also applies to an older in-flight refresh response: the client can ignore its application-level result, but cannot prevent the browser from processing a `Set-Cookie` header already sent by the server.
 
-Cookie behavior depends on the backend CORS policy allowing credentials for the exact frontend origin, and on cookie domain, `SameSite`, and `Secure` attributes matching the deployment topology. The frontend does not read cookies or attach bearer tokens. Validate cross-origin cookie behavior in the deployed environment before relying on persistent sessions.
+Cookie behavior depends on the backend CORS policy allowing credentials for the exact frontend origin, and on cookie domain, `SameSite`, and `Secure` attributes matching the deployment topology. The frontend does not read cookies or attach bearer tokens. The local browser check on 2026-10-21 found that `/auth/me` with `Origin: http://localhost:5173` and the `/auth/refresh` preflight both returned HTTP 500 without `Access-Control-Allow-Origin` or `Access-Control-Allow-Credentials`; the browser rejected the credentialed requests. Authenticated cookie attributes and the deployed frontend origin remain unverified. See [AUTH_INTEGRATION_CHECKLIST.md](AUTH_INTEGRATION_CHECKLIST.md) before relying on browser session persistence.
 
 ## Route map
 
@@ -73,9 +82,10 @@ Cookie behavior depends on the backend CORS policy allowing credentials for the 
 | -------- | -------------------------------------------------------------------------- | --------------------------------------- |
 | Public   | `/`                                                                        | Static landing page                     |
 | Public   | `/facilities`                                                              | Placeholder                             |
-| Customer | `/auth/login`, `/auth/register`                                            | Placeholders                            |
+| Customer | `/auth/login`                                                              | Shared validated login form             |
+| Customer | `/auth/register`                                                           | Placeholder                             |
 | Customer | `/account/*`                                                               | Customer shell with placeholder content |
-| Internal | `/portal/login`                                                            | Shared staff login placeholder          |
+| Internal | `/portal/login`                                                            | Shared validated staff login form       |
 | Internal | `/portal`                                                                  | Internal workspace placeholder          |
 | Internal | `/portal/admin/*`, `/portal/ops/*`, `/portal/manager/*`, `/portal/staff/*` | Role-area placeholders                  |
 
@@ -84,8 +94,9 @@ Cookie behavior depends on the backend CORS policy allowing credentials for the 
 1. Phase 1 — frontend foundation: app scaffold, route/layout shells, API client, quality tooling, and documentation.
 2. TASK 02.1 — authentication API contracts and services.
 3. TASK 02.2 — cookie-based session lifecycle and refresh coordination.
-4. TASK 02.R — frontend folder organization (current).
-5. TASK 02.3 — verify browser cookie/CORS behavior against the deployed frontend/backend origins, including credentialed requests and cookie attributes.
-6. Phase 3 — RBAC and protected routes, only after backend roles, permissions, and facility-scope contracts are agreed.
-7. Phase 4 — customer and internal authentication UI, recovery and verification flows, and UI feedback for pending/error/retry states.
-8. Later QA — broader integration coverage and repository/CI preparation.
+4. TASK 02.R — frontend folder organization (complete).
+5. TASK 02.3 — browser integration checked from localhost; blocked on backend CORS behavior and a securely provided test account. Deployed-origin cookie verification remains pending.
+6. TASK 04.1 — customer and shared internal login UI, integrated with the existing session action; real-browser login is still blocked by CORS.
+7. Phase 3 — RBAC and protected routes, only after backend roles, permissions, and facility-scope contracts are agreed.
+8. Later authentication work — registration, OTP, password recovery, and broader integration coverage after the backend contracts and CORS setup are ready.
+9. Later QA — repository/CI preparation.
