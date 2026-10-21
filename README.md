@@ -36,8 +36,8 @@ Set `VITE_API_BASE_URL` in `.env.local` to the backend application URL. The exam
 - Public and customer routes: `/`, `/facilities`, `/auth/login`, `/auth/register`, and `/account/*`
 - Internal portal: `/portal/login`, `/portal`, `/portal/admin/*`, `/portal/ops/*`, `/portal/manager/*`, and `/portal/staff/*`
 
-The routes currently render foundation placeholders where a full workflow is not part of Phase 1. Authentication, authorization, backend integration, and business modules are intentionally not implemented yet.
+The routes currently render foundation placeholders where a full workflow is not implemented yet. Cookie-based authentication services and in-memory session lifecycle are present; authentication UI, authorization, and business modules are not implemented.
 
 ## Project structure
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for boundaries, route ownership, API conventions, and the implementation roadmap.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the source directory map, boundaries, route ownership, API conventions, and implementation roadmap. All tests and test infrastructure live under `src/test/`.
