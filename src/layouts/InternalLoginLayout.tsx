@@ -17,7 +17,9 @@ export function InternalLoginLayout({ children }: InternalLoginLayoutProps) {
           Haven <span className="font-normal text-[#8a938c]">Staff</span>
         </Link>
       </header>
-      <main className="mx-auto max-w-2xl px-6 py-12 sm:px-10">{children}</main>
+      <main className="mx-auto max-w-7xl px-6 py-10 sm:px-10 sm:py-14">
+        {children}
+      </main>
     </div>
   )
 }

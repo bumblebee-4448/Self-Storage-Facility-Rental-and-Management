@@ -31,8 +31,9 @@ describe('application route layouts', () => {
     renderRoute('/portal/login')
 
     expect(
-      screen.getByRole('heading', { name: 'Đăng nhập nội bộ' }),
+      screen.getByRole('heading', { name: 'Không gian làm việc nội bộ' }),
     ).toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toBeInTheDocument()
     expect(screen.queryByText('Không gian làm việc')).not.toBeInTheDocument()
   })
 

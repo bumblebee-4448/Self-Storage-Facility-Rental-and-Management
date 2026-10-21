@@ -1,7 +1,10 @@
 import { Box, CircleUserRound } from 'lucide-react'
-import { Link, Outlet } from 'react-router-dom'
+import { Link, Outlet, useLocation } from 'react-router-dom'
+import { LoginRedirectNotice } from '@/components/auth/LoginRedirectNotice'
 
 export function CustomerLayout() {
+  const location = useLocation()
+
   return (
     <div className="min-h-screen bg-[#f9faf7] text-[#202521]">
       <header className="flex items-center justify-between border-b border-[#e8ebe5] bg-white px-6 py-4 sm:px-10">
@@ -16,6 +19,9 @@ export function CustomerLayout() {
         </Link>
       </header>
       <main className="mx-auto max-w-7xl px-6 py-12 sm:px-10">
+        <LoginRedirectNotice
+          key={`${location.pathname}${location.search}${location.hash}`}
+        />
         <Outlet />
       </main>
     </div>

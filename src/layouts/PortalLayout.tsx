@@ -7,6 +7,7 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
+import { LoginRedirectNotice } from '@/components/auth/LoginRedirectNotice'
 
 const navItems = [
   { label: 'Tổng quan', to: '/portal', icon: LayoutDashboard },
@@ -74,6 +75,9 @@ export function PortalLayout() {
           </Link>
         </header>
         <main className="mx-auto max-w-6xl px-6 py-10 sm:px-10">
+          <LoginRedirectNotice
+            key={`${location.pathname}${location.search}${location.hash}`}
+          />
           <Outlet />
         </main>
       </div>
