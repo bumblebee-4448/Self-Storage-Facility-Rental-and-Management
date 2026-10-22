@@ -5,7 +5,16 @@ import { Button } from '@/components/ui/button'
 import { getPublicErrorMessage } from '@/api/error-message'
 import { useAuthStore } from '@/stores/auth-store'
 import type { Role } from '@/models/auth'
-import { roleHome } from '@/config/roles'
+import { internalRoles, roleHome } from '@/config/roles'
+
+function getKnownInternalRoles(
+  roles: readonly Role[] = [],
+): Exclude<Role, 'CUSTOMER'>[] {
+  return roles.filter(
+    (role): role is Exclude<Role, 'CUSTOMER'> =>
+      role !== 'CUSTOMER' && internalRoles.includes(role),
+  )
+}
 
 function AuthPending() {
   return (
@@ -45,11 +54,11 @@ function AuthRetry() {
 
 export function AccessDenied() {
   const user = useAuthStore((state) => state.user)
-  const internalRoles = user?.roles.filter((role) => role !== 'CUSTOMER') ?? []
+  const userInternalRoles = getKnownInternalRoles(user?.roles)
   const destination =
-    internalRoles.length === 1
-      ? roleHome[internalRoles[0]]
-      : internalRoles.length > 1
+    userInternalRoles.length === 1
+      ? roleHome[userInternalRoles[0]]
+      : userInternalRoles.length > 1
         ? '/portal'
         : user?.roles.includes('CUSTOMER')
           ? '/account'
@@ -124,7 +133,7 @@ export function RequireAuth({
 
 export function RoleHomeRedirect() {
   const user = useAuthStore((state) => state.user)
-  const roles = user?.roles.filter((role) => role !== 'CUSTOMER') ?? []
+  const roles = getKnownInternalRoles(user?.roles)
   if (roles.length === 1) return <Navigate to={roleHome[roles[0]]} replace />
   if (roles.length === 0) return <Navigate to="/portal/login" replace />
 

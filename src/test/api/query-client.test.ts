@@ -28,6 +28,34 @@ describe('server state foundation', () => {
     ).toBeUndefined()
   })
 
+  it('does not let a pending old-session query repopulate the cache', async () => {
+    let resolveQuery!: (value: string[]) => void
+    let markStarted!: () => void
+    const queryStarted = new Promise<void>((resolve) => {
+      markStarted = resolve
+    })
+    const pendingResult = queryClient
+      .fetchQuery({
+        queryKey: ['private', 'contracts', 'list'],
+        queryFn: () => {
+          markStarted()
+          return new Promise<string[]>((resolve) => {
+            resolveQuery = resolve
+          })
+        },
+      })
+      .catch(() => undefined)
+
+    await queryStarted
+    clearSessionQueryCache()
+    resolveQuery(['old account contract'])
+    await pendingResult
+
+    expect(
+      queryClient.getQueryData(['private', 'contracts', 'list']),
+    ).toBeUndefined()
+  })
+
   it('invalidates only the affected entity and facility after a mutation', async () => {
     const facilityA = entityQueryKeys('storage-units').list({}, 'facility-a')
     const facilityB = entityQueryKeys('storage-units').list({}, 'facility-b')

@@ -122,6 +122,32 @@ describe('internal portal routes and role access', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('fails closed for an unknown runtime role without rendering portal content', () => {
+    renderPath('/portal/admin/users', ['PLATFORM_ROOT' as Role])
+    expect(screen.getByText(/403 · Không có quyền/i)).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Về khu vực của tôi' }),
+    ).toHaveAttribute('href', '/portal/login')
+    expect(
+      screen.queryByRole('heading', { name: 'Người dùng' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('ignores unknown runtime roles when selecting a default workspace', async () => {
+    const router = renderPath('/portal', [
+      'FACILITY_MANAGER',
+      'PLATFORM_ROOT' as Role,
+    ])
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        '/portal/manager/storage-units',
+      ),
+    )
+    expect(
+      screen.getByRole('heading', { name: 'Phòng kho' }),
+    ).toBeInTheDocument()
+  })
+
   it.each([
     ['/portal/admin', 'SYSTEM_ADMIN', '/portal/admin/users'],
     ['/portal/ops', 'BUSINESS_OPS_MANAGER', '/portal/ops/facilities'],
