@@ -12,7 +12,7 @@ describe('LandingPage', () => {
     )
 
     expect(
-      screen.getByRole('heading', { name: /chỗ cho những điều/i }),
+      screen.getByRole('heading', { name: /không gian lưu trữ linh hoạt cho mọi nhu cầu/i }),
     ).toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: /khám phá cơ sở/i }),

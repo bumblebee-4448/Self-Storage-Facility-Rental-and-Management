@@ -3,9 +3,8 @@ import { Box, LockKeyhole } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 interface InternalLoginLayoutProps {
-  children: ReactNode
+  children?: ReactNode
 }
-
 export function InternalLoginLayout({ children }: InternalLoginLayoutProps) {
   return (
     <div className="min-h-dvh bg-[#f4f6f2] text-[#202521]">
@@ -26,6 +25,9 @@ export function InternalLoginLayout({ children }: InternalLoginLayoutProps) {
       <main className="mx-auto max-w-7xl px-4 pb-8 sm:px-8 sm:pb-12 lg:px-10">
         {children}
       </main>
+      <p className="text-muted-foreground pb-8 text-center text-xs">
+        Chỉ dành cho nhân sự được cấp tài khoản hệ thống.
+      </p>
     </div>
   )
 }

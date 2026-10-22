@@ -1,11 +1,12 @@
+import { useState } from 'react'
 import {
-  ArrowUpRight,
   Box,
   Building2,
   LayoutDashboard,
   LogIn,
   LogOut,
   ShieldCheck,
+  X,
 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -23,11 +24,44 @@ function logoutErrorMessage(error: NormalizedApiError): string {
   return 'Không thể đăng xuất. Vui lòng thử lại.'
 }
 
-const navItems = [
-  { label: 'Tổng quan', to: '/portal', icon: LayoutDashboard },
-  { label: 'Quản trị hệ thống', to: '/portal/admin', icon: ShieldCheck },
-  { label: 'Vận hành doanh nghiệp', to: '/portal/ops', icon: Building2 },
+const navItems: {
+  label: string
+  to: string
+  role: Role
+  icon: typeof LayoutDashboard
+}[] = [
+  {
+    label: 'Quản trị hệ thống',
+    to: '/portal/admin',
+    role: 'SYSTEM_ADMIN',
+    icon: ShieldCheck,
+  },
+  {
+    label: 'Vận hành doanh nghiệp',
+    to: '/portal/ops',
+    role: 'BUSINESS_OPS_MANAGER',
+    icon: Building2,
+  },
+  {
+    label: 'Quản lý cơ sở',
+    to: '/portal/manager',
+    role: 'FACILITY_MANAGER',
+    icon: Building2,
+  },
+  {
+    label: 'Nhân viên cơ sở',
+    to: '/portal/staff',
+    role: 'FACILITY_STAFF',
+    icon: LayoutDashboard,
+  },
 ]
+const roleLabels: Record<Role, string> = {
+  CUSTOMER: 'Khách hàng',
+  SYSTEM_ADMIN: 'Quản trị hệ thống',
+  BUSINESS_OPS_MANAGER: 'Quản lý vận hành',
+  FACILITY_MANAGER: 'Quản lý cơ sở',
+  FACILITY_STAFF: 'Nhân viên cơ sở',
+}
 
 export function PortalLayout() {
   const location = useLocation()
@@ -68,39 +102,25 @@ export function PortalLayout() {
         <p className="mb-3 px-3 text-[11px] font-semibold tracking-[0.14em] text-[#9aa29b] uppercase">
           Không gian làm việc
         </p>
-        <nav className="space-y-1">
-          {navItems.map(({ label, to, icon: Icon }) => {
-            const active =
-              to === '/portal'
-                ? location.pathname === to
-                : location.pathname.startsWith(to)
-            return (
-              <Link
-                key={to}
-                to={to}
-                className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${active ? 'bg-[#edf3ed] font-medium text-[#244431]' : 'text-[#68736b] hover:bg-[#f7f8f6]'}`}
-              >
-                <Icon size={17} strokeWidth={1.8} />
-                {label}
-              </Link>
-            )
-          })}
-        </nav>
+        {navigation('space-y-1')}
         <div className="mt-auto rounded-2xl bg-[#f4f6f2] p-4">
-          <p className="text-sm font-medium">Giao diện nền tảng</p>
-          <p className="mt-1 text-xs leading-5 text-[#778179]">
-            Các công cụ nghiệp vụ sẽ được bổ sung trong những giai đoạn tiếp
-            theo.
+          <p className="text-sm font-medium">
+            {role ? roleLabels[role] : 'Cổng nội bộ'}
+          </p>
+          <p className="mt-1 truncate text-xs text-[#778179]">
+            {user?.name ?? user?.email}
           </p>
         </div>
       </aside>
       <div className="min-w-0">
-        <header className="flex h-[72px] items-center justify-between border-b border-[#e5e9e2] bg-white px-6 sm:px-10">
+        <header className="flex min-h-[72px] items-center justify-between border-b border-[#e5e9e2] bg-white px-5 sm:px-10">
           <div>
             <p className="text-xs text-[#879188]">
-              Haven Storage / Internal Portal
+              Haven Storage / Cổng nội bộ
             </p>
-            <p className="mt-1 text-sm font-medium">Workspace</p>
+            <p className="mt-1 text-sm font-medium">
+              {role ? roleLabels[role] : 'Không gian làm việc'}
+            </p>
           </div>
           {user ? (
             <div className="flex items-center gap-3">

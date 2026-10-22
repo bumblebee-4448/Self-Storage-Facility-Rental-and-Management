@@ -1,6 +1,11 @@
 import { create } from 'zustand'
-import { getCurrentUser, login, logout } from '@/api/auth-service'
-import type { LoginRequest } from '@/models/backend-auth'
+import {
+  getCurrentUser,
+  login,
+  logout,
+  registerAccount,
+} from '@/api/auth-service'
+import type { LoginRequest, RegisterRequest } from '@/models/backend-auth'
 import type { AuthUser } from '@/models/auth'
 import { normalizeApiError } from '@/api/errors'
 import type { NormalizedApiError } from '@/api/errors'
@@ -24,6 +29,8 @@ export interface AuthState {
 interface AuthActions {
   bootstrapSession: () => Promise<void>
   signIn: (credentials: LoginRequest) => Promise<AuthActionResult<AuthUser>>
+  signUp: (payload: RegisterRequest) => Promise<AuthActionResult<AuthUser>>
+  invalidateSession: () => void
   signOut: () => Promise<AuthActionResult<void>>
   retryBootstrap: () => Promise<void>
 }
@@ -98,6 +105,34 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       finishSessionTransition(epoch)
       return { success: false, error }
     }
+  },
+
+  signUp: async (payload) => {
+    const epoch = beginSessionTransition()
+    set({ user: null, status: 'checking', error: null })
+    try {
+      const user = await registerAccount(payload)
+      if (getSessionGeneration() !== epoch) {
+        return { success: false, error: supersededResult() }
+      }
+      set({ user, status: 'authenticated', error: null })
+      finishSessionTransition(epoch)
+      return { success: true, value: user }
+    } catch (cause) {
+      if (getSessionGeneration() !== epoch) {
+        return { success: false, error: supersededResult() }
+      }
+      const error = normalizeApiError(cause)
+      set({ user: null, status: 'error', error })
+      finishSessionTransition(epoch)
+      return { success: false, error }
+    }
+  },
+
+  invalidateSession: () => {
+    const epoch = beginSessionTransition()
+    set({ user: null, status: 'guest', error: null })
+    finishSessionTransition(epoch)
   },
 
   signOut: async () => {
