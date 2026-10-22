@@ -153,16 +153,6 @@ export function LoginForm({ entryPoint }: LoginFormProps) {
           : 'Đăng nhập nhân viên'
       }
     >
-      {entryPoint === 'customer' &&
-        authStatus === 'checking' &&
-        !isSubmitting && (
-          <p
-            role="status"
-            className="rounded-xl bg-[#f4f6f2] px-4 py-3 text-sm text-[#53645a]"
-          >
-            Đang kiểm tra phiên đăng nhập hiện tại…
-          </p>
-        )}
       {authStatus === 'error' && !serverError && (
         <p className="rounded-xl bg-[#f4f6f2] px-4 py-3 text-sm leading-6 text-[#53645a]">
           {sessionErrorMessage}

@@ -1,12 +1,22 @@
 import { useState } from 'react'
-import { Box, CalendarDays, CircleUserRound, LogOut, Menu, UserRound, X } from 'lucide-react'
-import { Link, Outlet, useNavigate } from 'react-router-dom'
+import {
+  Box,
+  CalendarDays,
+  CircleUserRound,
+  LogOut,
+  Menu,
+  UserRound,
+  X,
+} from 'lucide-react'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { getPublicErrorMessage } from '@/api/error-message'
+import { LoginRedirectNotice } from '@/components/auth/LoginRedirectNotice'
 import { useAuthStore } from '@/stores/auth-store'
 
 export function CustomerLayout() {
   const user = useAuthStore((state) => state.user)
   const signOut = useAuthStore((state) => state.signOut)
+  const location = useLocation()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [logoutError, setLogoutError] = useState('')
@@ -33,7 +43,10 @@ export function CustomerLayout() {
             >
               <UserRound size={17} /> Hồ sơ
             </Link>
-            <Link to="/account/reservations" className="inline-flex items-center gap-2 text-sm text-[#667069] hover:text-primary">
+            <Link
+              to="/account/reservations"
+              className="hover:text-primary inline-flex items-center gap-2 text-sm text-[#667069]"
+            >
               <CalendarDays size={17} /> Đặt chỗ của tôi
             </Link>
             <button
@@ -63,7 +76,11 @@ export function CustomerLayout() {
             >
               Hồ sơ · {user?.name ?? user?.email}
             </Link>
-            <Link onClick={() => setMenuOpen(false)} className="block rounded-xl px-4 py-3 text-sm hover:bg-[#f4f6f2]" to="/account/reservations">
+            <Link
+              onClick={() => setMenuOpen(false)}
+              className="block rounded-xl px-4 py-3 text-sm hover:bg-[#f4f6f2]"
+              to="/account/reservations"
+            >
               Đặt chỗ của tôi
             </Link>
             <button
@@ -85,6 +102,9 @@ export function CustomerLayout() {
         </p>
       )}
       <main className="mx-auto max-w-7xl px-5 py-8 sm:px-10 sm:py-12">
+        <LoginRedirectNotice
+          key={`${location.pathname}${location.search}${location.hash}`}
+        />
         <Outlet />
       </main>
       <footer className="border-t border-[#e8ebe5] bg-white">

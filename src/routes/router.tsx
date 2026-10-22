@@ -1,15 +1,13 @@
-import { createBrowserRouter, Outlet } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom'
 import { CustomerLayout } from '@/layouts/CustomerLayout'
 import { InternalLoginLayout } from '@/layouts/InternalLoginLayout'
-import { PortalLayout } from '@/layouts/PortalLayout'
+import { InternalPortalShell } from '@/layouts/InternalPortalShell'
 import { PublicLayout } from '@/layouts/PublicLayout'
 import { PlaceholderPage } from '@/components/shared/PlaceholderPage'
-import {
-  RequireAuth,
-  RoleDashboard,
-  RoleHomeRedirect,
-} from '@/components/shared/RouteGuards'
+import { PortalModulePlaceholder } from '@/components/shared/PortalModulePlaceholder'
+import { RequireAuth, RoleHomeRedirect } from '@/components/shared/RouteGuards'
 import { internalRoles } from '@/config/roles'
+import type { Role } from '@/models/auth'
 import { LandingPage } from '@/pages/LandingPage'
 import {
   AccountHomeRoute,
@@ -30,6 +28,37 @@ import {
 } from '@/routes/LazyPages'
 import type { RouteObject } from 'react-router-dom'
 
+function roleRoutes(
+  path: string,
+  role: Role,
+  defaultPath: string,
+  pages: { path: string; title: string; description: string }[],
+): RouteObject {
+  return {
+    id: `portal-${path}`,
+    path,
+    element: <RequireAuth allowedRoles={[role]} />,
+    children: [
+      { index: true, element: <Navigate to={defaultPath} replace /> },
+      ...pages.map(({ path: pagePath, title, description }) => ({
+        id: `portal-${path}-${pagePath.replaceAll('/', '-')}`,
+        path: pagePath,
+        element: (
+          <PortalModulePlaceholder
+            role={role}
+            title={title}
+            description={description}
+          />
+        ),
+      })),
+      { path: '*', element: <PlaceholderPage title="Không tìm thấy trang" /> },
+    ],
+  }
+}
+
+const moduleDescription =
+  'Khung trang đã được chuẩn bị. API và hành vi nghiệp vụ sẽ được xác nhận trong task migration riêng.'
+
 export const routeObjects: RouteObject[] = [
   {
     element: <PublicLayout />,
@@ -38,8 +67,22 @@ export const routeObjects: RouteObject[] = [
       { path: '/facilities', element: <FacilitiesRoute /> },
       { path: '/facilities/:facilityId', element: <FacilityDetailRoute /> },
       { path: '/storage-units', element: <StorageDiscoveryRoute /> },
-      { path: '/reservations/new', element: <RequireAuth allowedRoles={['CUSTOMER']}><NewReservationRoute /></RequireAuth> },
-      { path: '/reservations/review', element: <RequireAuth allowedRoles={['CUSTOMER']}><ReservationReviewRoute /></RequireAuth> },
+      {
+        path: '/reservations/new',
+        element: (
+          <RequireAuth allowedRoles={['CUSTOMER']}>
+            <NewReservationRoute />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: '/reservations/review',
+        element: (
+          <RequireAuth allowedRoles={['CUSTOMER']}>
+            <ReservationReviewRoute />
+          </RequireAuth>
+        ),
+      },
       { path: '/auth/login', element: <LoginRoute /> },
       { path: '/auth/register', element: <RegisterRoute /> },
       { path: '/auth/forgot-password', element: <ForgotPasswordRoute /> },
@@ -58,7 +101,10 @@ export const routeObjects: RouteObject[] = [
       { path: 'profile', element: <ProfileRoute /> },
       { path: 'change-password', element: <ChangePasswordRoute /> },
       { path: 'reservations', element: <MyReservationsRoute /> },
-      { path: 'reservations/:reservationId', element: <ReservationDetailsRoute /> },
+      {
+        path: 'reservations/:reservationId',
+        element: <ReservationDetailsRoute />,
+      },
       { path: '*', element: <PlaceholderPage title="Khu vực khách hàng" /> },
     ],
   },
@@ -73,61 +119,93 @@ export const routeObjects: RouteObject[] = [
   },
   {
     path: '/portal',
+    id: 'portal-root',
     element: (
-      <RequireAuth allowedRoles={internalRoles}>
-        <PortalLayout />
+      <RequireAuth
+        allowedRoles={internalRoles}
+        keepAuthenticatedShellDuringCheck
+      >
+        <InternalPortalShell />
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <RoleHomeRedirect /> },
-      {
-        path: 'admin/*',
-        element: (
-          <RequireAuth allowedRoles={['SYSTEM_ADMIN']}>
-            <RoleDashboard
-              role="SYSTEM_ADMIN"
-              title="Quản trị hệ thống"
-              description="Không gian quản trị hệ thống. Các công cụ chỉ hiển thị sau khi API và quyền truy cập tương ứng được xác nhận."
-            />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'ops/*',
-        element: (
-          <RequireAuth allowedRoles={['BUSINESS_OPS_MANAGER']}>
-            <RoleDashboard
-              role="BUSINESS_OPS_MANAGER"
-              title="Vận hành doanh nghiệp"
-              description="Không gian dành cho quản lý vận hành. Chưa hiển thị KPI hoặc dữ liệu giả."
-            />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'manager/*',
-        element: (
-          <RequireAuth allowedRoles={['FACILITY_MANAGER']}>
-            <RoleDashboard
-              role="FACILITY_MANAGER"
-              title="Quản lý cơ sở"
-              description="Không gian dành cho quản lý cơ sở. Các nghiệp vụ sẽ được tích hợp theo API và phân quyền đã xác nhận."
-            />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'staff/*',
-        element: (
-          <RequireAuth allowedRoles={['FACILITY_STAFF']}>
-            <RoleDashboard
-              role="FACILITY_STAFF"
-              title="Nhân viên cơ sở"
-              description="Không gian dành cho nhân viên cơ sở. Các nghiệp vụ sẽ được tích hợp theo API và phân quyền đã xác nhận."
-            />
-          </RequireAuth>
-        ),
-      },
+      { id: 'portal-home', index: true, element: <RoleHomeRedirect /> },
+      roleRoutes('admin', 'SYSTEM_ADMIN', 'users', [
+        { path: 'users', title: 'Người dùng', description: moduleDescription },
+        {
+          path: 'audit-logs',
+          title: 'Nhật ký hệ thống',
+          description: moduleDescription,
+        },
+      ]),
+      roleRoutes('ops', 'BUSINESS_OPS_MANAGER', 'facilities', [
+        { path: 'facilities', title: 'Cơ sở', description: moduleDescription },
+        {
+          path: 'unit-types',
+          title: 'Loại kho',
+          description: moduleDescription,
+        },
+        {
+          path: 'amenities',
+          title: 'Tiện ích',
+          description: moduleDescription,
+        },
+        {
+          path: 'offerings',
+          title: 'Gói dịch vụ',
+          description: moduleDescription,
+        },
+        {
+          path: 'facility-amenities',
+          title: 'Tiện ích cơ sở',
+          description: moduleDescription,
+        },
+        {
+          path: 'approvals',
+          title: 'Duyệt yêu cầu',
+          description: moduleDescription,
+        },
+      ]),
+      roleRoutes('manager', 'FACILITY_MANAGER', 'storage-units', [
+        {
+          path: 'storage-units',
+          title: 'Phòng kho',
+          description: moduleDescription,
+        },
+        {
+          path: 'reservations',
+          title: 'Đặt chỗ',
+          description: moduleDescription,
+        },
+        {
+          path: 'contracts',
+          title: 'Hợp đồng',
+          description: moduleDescription,
+        },
+        {
+          path: 'contracts/:id',
+          title: 'Chi tiết hợp đồng',
+          description: moduleDescription,
+        },
+        { path: 'requests', title: 'Yêu cầu', description: moduleDescription },
+      ]),
+      roleRoutes('staff', 'FACILITY_STAFF', 'contracts', [
+        {
+          path: 'contracts',
+          title: 'Hợp đồng',
+          description: moduleDescription,
+        },
+        {
+          path: 'contracts/:id',
+          title: 'Chi tiết hợp đồng',
+          description: moduleDescription,
+        },
+        {
+          path: 'storage-units',
+          title: 'Phòng kho',
+          description: moduleDescription,
+        },
+      ]),
       { path: '*', element: <PlaceholderPage title="Không tìm thấy trang" /> },
     ],
   },

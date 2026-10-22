@@ -25,9 +25,12 @@ function resetAuthStore() {
   useAuthStore.setState({ user: null, status: 'guest', error: null })
 }
 
-function renderRoute(path: string) {
+async function renderRoute(path: string) {
   const router = createMemoryRouter(routeObjects, { initialEntries: [path] })
   render(<RouterProvider router={router} />)
+  await waitFor(() =>
+    expect(screen.queryByText('Đang tải trang…')).not.toBeInTheDocument(),
+  )
   return router
 }
 
@@ -42,8 +45,8 @@ async function fillCredentials(
 describe('customer and internal login pages', () => {
   beforeEach(resetAuthStore)
 
-  it('renders the customer login page with its public account links', () => {
-    renderRoute('/auth/login')
+  it('renders the customer login page with its public account links', async () => {
+    await renderRoute('/auth/login')
 
     expect(
       screen.getByRole('heading', { name: 'Chào mừng trở lại' }),
@@ -58,8 +61,8 @@ describe('customer and internal login pages', () => {
     ).toHaveAttribute('href', '/portal/login')
   })
 
-  it('renders the shared internal staff login page', () => {
-    renderRoute('/portal/login')
+  it('renders the shared internal staff login page', async () => {
+    await renderRoute('/portal/login')
 
     expect(
       screen.getByRole('heading', { name: 'Chào mừng trở lại' }),
@@ -72,7 +75,7 @@ describe('customer and internal login pages', () => {
 
   it('shows Vietnamese required-field validation', async () => {
     const user = userEvent.setup()
-    renderRoute('/auth/login')
+    await renderRoute('/auth/login')
 
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
 
@@ -97,7 +100,7 @@ describe('customer and internal login pages', () => {
         return HttpResponse.json(loginEnvelope('customer'))
       }),
     )
-    renderRoute('/auth/login')
+    await renderRoute('/auth/login')
     await user.type(screen.getByLabelText('Email'), 'not-an-email')
     await user.type(screen.getByLabelText('Mật khẩu'), 'secure-password')
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
@@ -110,7 +113,7 @@ describe('customer and internal login pages', () => {
 
   it('rejects passwords shorter than six characters', async () => {
     const user = userEvent.setup()
-    renderRoute('/auth/login')
+    await renderRoute('/auth/login')
     await fillCredentials(user, 'short')
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
 
@@ -121,7 +124,7 @@ describe('customer and internal login pages', () => {
 
   it('rejects passwords longer than one hundred characters', async () => {
     const user = userEvent.setup()
-    renderRoute('/auth/login')
+    await renderRoute('/auth/login')
     await user.type(screen.getByLabelText('Email'), 'person@example.com')
     fireEvent.change(screen.getByLabelText('Mật khẩu'), {
       target: { value: 'a'.repeat(101) },
@@ -135,7 +138,7 @@ describe('customer and internal login pages', () => {
 
   it('allows the user to show and hide the password', async () => {
     const user = userEvent.setup()
-    renderRoute('/auth/login')
+    await renderRoute('/auth/login')
     const password = screen.getByLabelText('Mật khẩu')
 
     expect(password).toHaveAttribute('type', 'password')
@@ -154,11 +157,11 @@ describe('customer and internal login pages', () => {
         return HttpResponse.json(loginEnvelope('customer'))
       }),
     )
-    renderRoute('/auth/login')
+    await renderRoute('/auth/login')
     await fillCredentials(user)
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
 
-    await screen.findByRole('heading', { name: 'Tài khoản khách hàng' })
+    await screen.findByRole('heading', { name: 'Xin chào' })
     expect(receivedBody).toEqual({
       email: 'person@example.com',
       password: 'secure-password',
@@ -166,11 +169,11 @@ describe('customer and internal login pages', () => {
   })
 
   it.each([
-    ['customer', '/account', 'Tài khoản khách hàng'],
-    ['system_admin', '/portal/admin', 'Quản trị hệ thống'],
-    ['business_ops_manager', '/portal/ops', 'Vận hành doanh nghiệp'],
-    ['facility_manager', '/portal/manager', 'Quản lý cơ sở'],
-    ['facility_staff', '/portal/staff', 'Nhân viên cơ sở'],
+    ['customer', '/account', 'Xin chào'],
+    ['system_admin', '/portal/admin/users', 'Người dùng'],
+    ['business_ops_manager', '/portal/ops/facilities', 'Cơ sở'],
+    ['facility_manager', '/portal/manager/storage-units', 'Phòng kho'],
+    ['facility_staff', '/portal/staff/contracts', 'Hợp đồng'],
   ])(
     'routes the authenticated %s role to its mapped destination',
     async (role, destination, heading) => {
@@ -178,7 +181,7 @@ describe('customer and internal login pages', () => {
       server.use(
         http.post('*/auth/login', () => HttpResponse.json(loginEnvelope(role))),
       )
-      const router = renderRoute('/portal/login')
+      const router = await renderRoute('/portal/login')
       await fillCredentials(user)
       await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
 
@@ -196,7 +199,7 @@ describe('customer and internal login pages', () => {
         HttpResponse.json(loginEnvelope('customer')),
       ),
     )
-    const router = renderRoute('/portal/login')
+    const router = await renderRoute('/portal/login')
     await fillCredentials(user)
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
 
@@ -217,6 +220,16 @@ describe('customer and internal login pages', () => {
   it('clears the notice after navigating within the internal portal layout', async () => {
     const notice =
       'Tài khoản này thuộc khu vực quản trị hệ thống. Bạn đã được chuyển đến đúng khu vực.'
+    useAuthStore.setState({
+      user: {
+        id: 'admin-1',
+        email: 'admin@example.com',
+        roles: ['SYSTEM_ADMIN'],
+        permissions: [],
+      },
+      status: 'authenticated',
+      error: null,
+    })
     const router = createMemoryRouter(routeObjects, {
       initialEntries: [
         {
@@ -231,11 +244,15 @@ describe('customer and internal login pages', () => {
     await waitFor(() => expect(router.state.location.state).toBeNull())
     expect(screen.getByText(notice)).toBeInTheDocument()
 
-    await router.navigate('/portal/staff')
+    await router.navigate('/portal/admin/audit-logs')
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/portal/admin/audit-logs'),
+    )
+    expect(router.state.location.state).toBeNull()
     await waitFor(() =>
       expect(screen.queryByText(notice)).not.toBeInTheDocument(),
     )
-    await router.navigate('/portal/admin')
+    await router.navigate('/portal/admin/users')
     expect(screen.queryByText(notice)).not.toBeInTheDocument()
   })
 
@@ -256,7 +273,7 @@ describe('customer and internal login pages', () => {
         ),
       ),
     )
-    renderRoute('/auth/login')
+    await renderRoute('/auth/login')
     await fillCredentials(user, 'private-password')
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
 
@@ -289,7 +306,7 @@ describe('customer and internal login pages', () => {
         ),
       ),
     )
-    renderRoute('/portal/login')
+    await renderRoute('/portal/login')
     await fillCredentials(user)
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
 
@@ -304,7 +321,7 @@ describe('customer and internal login pages', () => {
   it('does not misreport a network or CORS failure as invalid credentials', async () => {
     const user = userEvent.setup()
     server.use(http.post('*/auth/login', () => HttpResponse.error()))
-    renderRoute('/auth/login')
+    await renderRoute('/auth/login')
     await fillCredentials(user)
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
 
@@ -333,7 +350,7 @@ describe('customer and internal login pages', () => {
           }),
       ),
     )
-    renderRoute('/auth/login')
+    await renderRoute('/auth/login')
     await fillCredentials(user)
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
     await started
@@ -344,7 +361,7 @@ describe('customer and internal login pages', () => {
     expect(pendingButton).toBeDisabled()
     expect(screen.getByLabelText('Email')).toBeDisabled()
     finishLogin?.(HttpResponse.json(loginEnvelope('customer')))
-    await screen.findByRole('heading', { name: 'Tài khoản khách hàng' })
+    await screen.findByRole('heading', { name: 'Xin chào' })
   })
 
   it('does not navigate after a failed login', async () => {
@@ -364,7 +381,7 @@ describe('customer and internal login pages', () => {
         ),
       ),
     )
-    renderRoute('/portal/login')
+    await renderRoute('/portal/login')
     await fillCredentials(user)
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
 
@@ -385,7 +402,7 @@ describe('customer and internal login pages', () => {
       status: 'authenticated',
       error: null,
     })
-    const router = renderRoute('/auth/login')
+    const router = await renderRoute('/auth/login')
 
     expect(
       screen.getByText(/bạn đã đăng nhập với tài khoản person@example.com/i),
@@ -397,11 +414,11 @@ describe('customer and internal login pages', () => {
       }),
     )
     expect(
-      await screen.findByRole('heading', { name: 'Tài khoản khách hàng' }),
+      await screen.findByRole('heading', { name: 'Xin chào' }),
     ).toBeInTheDocument()
   })
 
-  it('fails closed instead of navigating when role data is ambiguous', () => {
+  it('fails closed instead of navigating when role data is ambiguous', async () => {
     useAuthStore.setState({
       user: {
         id: 'user-1',
@@ -412,7 +429,7 @@ describe('customer and internal login pages', () => {
       status: 'authenticated',
       error: null,
     })
-    const router = renderRoute('/portal/login')
+    const router = await renderRoute('/portal/login')
 
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Không thể xác định khu vực phù hợp',
@@ -429,10 +446,10 @@ describe('customer and internal login pages', () => {
         HttpResponse.json(loginEnvelope('customer')),
       ),
     )
-    renderRoute('/auth/login')
+    await renderRoute('/auth/login')
     await fillCredentials(user, 'private-password')
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
-    await screen.findByRole('heading', { name: 'Tài khoản khách hàng' })
+    await screen.findByRole('heading', { name: 'Xin chào' })
 
     expect(localStorage.length).toBe(0)
     expect(sessionStorage.length).toBe(0)
@@ -440,10 +457,10 @@ describe('customer and internal login pages', () => {
 
   it('renders bootstrap checking and error states without starting another bootstrap', async () => {
     useAuthStore.setState({ user: null, status: 'checking', error: null })
-    renderRoute('/auth/login')
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Đang kiểm tra phiên đăng nhập hiện tại',
-    )
+    await renderRoute('/auth/login')
+    expect(
+      screen.queryByText('Đang kiểm tra phiên đăng nhập hiện tại…'),
+    ).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /đang kiểm tra phiên/i }),
     ).toBeDisabled()

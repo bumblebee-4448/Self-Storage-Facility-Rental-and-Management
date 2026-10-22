@@ -45,7 +45,15 @@ function AuthRetry() {
 
 export function AccessDenied() {
   const user = useAuthStore((state) => state.user)
-  const destination = user ? roleHome[user.roles[0]] : '/'
+  const internalRoles = user?.roles.filter((role) => role !== 'CUSTOMER') ?? []
+  const destination =
+    internalRoles.length === 1
+      ? roleHome[internalRoles[0]]
+      : internalRoles.length > 1
+        ? '/portal'
+        : user?.roles.includes('CUSTOMER')
+          ? '/account'
+          : '/portal/login'
   return (
     <main className="mx-auto grid min-h-[55vh] max-w-lg place-items-center p-6 text-center">
       <section className="rounded-3xl border border-[#e5e9e2] bg-white p-8">
@@ -73,13 +81,31 @@ export function AccessDenied() {
 interface RequireAuthProps {
   allowedRoles?: Role[]
   children?: ReactNode
+  keepAuthenticatedShellDuringCheck?: boolean
 }
-export function RequireAuth({ allowedRoles, children }: RequireAuthProps) {
+export function RequireAuth({
+  allowedRoles,
+  children,
+  keepAuthenticatedShellDuringCheck = false,
+}: RequireAuthProps) {
   const status = useAuthStore((state) => state.status)
   const user = useAuthStore((state) => state.user)
   const location = useLocation()
-  if (status === 'idle' || status === 'checking') return <AuthPending />
-  if (status === 'error') return <AuthRetry />
+  const userHasAllowedRole =
+    user &&
+    (!allowedRoles || user.roles.some((role) => allowedRoles.includes(role)))
+  if (status === 'idle' || status === 'checking') {
+    if (keepAuthenticatedShellDuringCheck && userHasAllowedRole) {
+      return children ? <>{children}</> : <Outlet />
+    }
+    return <AuthPending />
+  }
+  if (status === 'error') {
+    if (keepAuthenticatedShellDuringCheck && userHasAllowedRole) {
+      return children ? <>{children}</> : <Outlet />
+    }
+    return <AuthRetry />
+  }
   if (status !== 'authenticated' || !user) {
     const loginPath = location.pathname.startsWith('/portal')
       ? '/portal/login'
@@ -92,44 +118,43 @@ export function RequireAuth({ allowedRoles, children }: RequireAuthProps) {
       />
     )
   }
-  if (allowedRoles && !user.roles.some((role) => allowedRoles.includes(role)))
-    return <AccessDenied />
+  if (allowedRoles && !userHasAllowedRole) return <AccessDenied />
   return children ? <>{children}</> : <Outlet />
 }
 
 export function RoleHomeRedirect() {
-  const role = useAuthStore((state) => state.user?.roles[0])
-  return role ? (
-    <Navigate to={roleHome[role]} replace />
-  ) : (
-    <Navigate to="/portal/login" replace />
-  )
-}
-
-export function RoleDashboard({
-  role,
-  title,
-  description,
-}: {
-  role: Role
-  title: string
-  description: string
-}) {
   const user = useAuthStore((state) => state.user)
-  if (!user?.roles.includes(role)) return <AccessDenied />
+  const roles = user?.roles.filter((role) => role !== 'CUSTOMER') ?? []
+  if (roles.length === 1) return <Navigate to={roleHome[roles[0]]} replace />
+  if (roles.length === 0) return <Navigate to="/portal/login" replace />
+
   return (
-    <section className="rounded-3xl border border-[#e5e9e2] bg-white p-7 sm:p-10">
-      <p className="text-xs font-semibold tracking-[0.16em] text-[#849087] uppercase">
-        Không gian làm việc
+    <section className="mx-auto max-w-3xl">
+      <h1 className="text-2xl font-semibold tracking-tight">
+        Chọn khu vực làm việc
+      </h1>
+      <p className="text-muted-foreground mt-2 text-sm">
+        Tài khoản của bạn có nhiều vai trò. Chọn không gian cần mở.
       </p>
-      <h1 className="mt-3 text-3xl font-semibold tracking-tight">{title}</h1>
-      <p className="mt-3 max-w-2xl text-sm leading-6 text-[#758078]">
-        {description}
-      </p>
-      <div className="mt-8 rounded-2xl border border-dashed border-[#d9e1d8] bg-[#f9faf7] p-5 text-sm text-[#758078]">
-        Các dữ liệu và nghiệp vụ sẽ hiển thị khi backend hỗ trợ và được tích
-        hợp. Hiện chưa có số liệu vận hành để hiển thị.
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        {roles.map((role) => (
+          <Link
+            key={role}
+            to={roleHome[role]}
+            className="border-border bg-card hover:border-primary/40 hover:bg-secondary rounded-2xl border p-5 font-medium transition"
+          >
+            {roleTitle[role]}
+          </Link>
+        ))}
       </div>
     </section>
   )
+}
+
+const roleTitle: Record<Role, string> = {
+  CUSTOMER: 'Khách hàng',
+  SYSTEM_ADMIN: 'Quản trị hệ thống',
+  BUSINESS_OPS_MANAGER: 'Vận hành doanh nghiệp',
+  FACILITY_MANAGER: 'Quản lý cơ sở',
+  FACILITY_STAFF: 'Nhân viên cơ sở',
 }

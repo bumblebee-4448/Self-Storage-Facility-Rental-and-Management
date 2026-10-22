@@ -1,13 +1,13 @@
 import { lazy, Suspense } from 'react'
 
 const LoginPage = lazy(() =>
-  import('@/pages/auth/AuthPages').then((module) => ({
-    default: module.LoginPage,
+  import('@/pages/CustomerLoginPage').then((module) => ({
+    default: module.CustomerLoginPage,
   })),
 )
 const InternalLoginPage = lazy(() =>
-  import('@/pages/auth/AuthPages').then((module) => ({
-    default: module.InternalLoginPage,
+  import('@/pages/PortalLoginPage').then((module) => ({
+    default: module.PortalLoginPage,
   })),
 )
 const RegisterPage = lazy(() =>
@@ -55,10 +55,26 @@ const StorageDiscoveryPage = lazy(() =>
     default: module.StorageDiscoveryPage,
   })),
 )
-const NewReservationPage = lazy(() => import('@/features/customer/reservations/pages/NewReservationPage').then((module) => ({ default: module.NewReservationPage })))
-const ReservationReviewPage = lazy(() => import('@/features/customer/reservations/pages/ReservationPages').then((module) => ({ default: module.ReservationReviewPage })))
-const MyReservationsPage = lazy(() => import('@/features/customer/reservations/pages/ReservationPages').then((module) => ({ default: module.MyReservationsPage })))
-const ReservationDetailsPage = lazy(() => import('@/features/customer/reservations/pages/ReservationPages').then((module) => ({ default: module.ReservationDetailsPage })))
+const NewReservationPage = lazy(() =>
+  import('@/features/customer/reservations/pages/NewReservationPage').then(
+    (module) => ({ default: module.NewReservationPage }),
+  ),
+)
+const ReservationReviewPage = lazy(() =>
+  import('@/features/customer/reservations/pages/ReservationPages').then(
+    (module) => ({ default: module.ReservationReviewPage }),
+  ),
+)
+const MyReservationsPage = lazy(() =>
+  import('@/features/customer/reservations/pages/ReservationPages').then(
+    (module) => ({ default: module.MyReservationsPage }),
+  ),
+)
+const ReservationDetailsPage = lazy(() =>
+  import('@/features/customer/reservations/pages/ReservationPages').then(
+    (module) => ({ default: module.ReservationDetailsPage }),
+  ),
+)
 
 function PageLoading() {
   return (
@@ -130,15 +146,51 @@ export function ChangePasswordRoute() {
   )
 }
 export function FacilitiesRoute() {
-  return <Suspense fallback={<PageLoading />}><FacilitiesPage /></Suspense>
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <FacilitiesPage />
+    </Suspense>
+  )
 }
 export function FacilityDetailRoute() {
-  return <Suspense fallback={<PageLoading />}><FacilityDetailPage /></Suspense>
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <FacilityDetailPage />
+    </Suspense>
+  )
 }
 export function StorageDiscoveryRoute() {
-  return <Suspense fallback={<PageLoading />}><StorageDiscoveryPage /></Suspense>
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <StorageDiscoveryPage />
+    </Suspense>
+  )
 }
-export function NewReservationRoute() { return <Suspense fallback={<PageLoading />}><NewReservationPage /></Suspense> }
-export function ReservationReviewRoute() { return <Suspense fallback={<PageLoading />}><ReservationReviewPage /></Suspense> }
-export function MyReservationsRoute() { return <Suspense fallback={<PageLoading />}><MyReservationsPage /></Suspense> }
-export function ReservationDetailsRoute() { return <Suspense fallback={<PageLoading />}><ReservationDetailsPage /></Suspense> }
+export function NewReservationRoute() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <NewReservationPage />
+    </Suspense>
+  )
+}
+export function ReservationReviewRoute() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <ReservationReviewPage />
+    </Suspense>
+  )
+}
+export function MyReservationsRoute() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <MyReservationsPage />
+    </Suspense>
+  )
+}
+export function ReservationDetailsRoute() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <ReservationDetailsPage />
+    </Suspense>
+  )
+}
