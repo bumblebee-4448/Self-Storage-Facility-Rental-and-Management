@@ -7,6 +7,7 @@ import type { AuthUser } from '@/models/auth'
 import { routeObjects } from '@/routes/router'
 import { useAuthStore } from '@/stores/auth-store'
 import { server } from '@/test/server'
+import { queryClient } from '@/config/query-client'
 
 const staffUser: AuthUser = {
   id: 'staff-1',
@@ -36,6 +37,8 @@ describe('portal session controls', () => {
 
   it('shows the authenticated identity and signs out to the internal login', async () => {
     const user = userEvent.setup()
+    const cachedKey = ['private', 'contracts', 'facility-1'] as const
+    queryClient.setQueryData(cachedKey, [{ id: 'contract-private' }])
     let logoutCalls = 0
     server.use(
       http.post('*/auth/logout', () => {
@@ -51,7 +54,9 @@ describe('portal session controls', () => {
     )
     const router = renderPortal()
 
-    expect(screen.getByText('Facility Staff')).toBeInTheDocument()
+    expect(screen.getByLabelText('Tài khoản đang đăng nhập')).toHaveTextContent(
+      'Facility Staff',
+    )
     await user.click(screen.getByRole('button', { name: 'Đăng xuất' }))
 
     await waitFor(() =>
@@ -59,6 +64,7 @@ describe('portal session controls', () => {
     )
     expect(logoutCalls).toBe(1)
     expect(useAuthStore.getState().user).toBeNull()
+    expect(queryClient.getQueryData(cachedKey)).toBeUndefined()
   })
 
   it('disables repeated logout while the request is pending', async () => {
@@ -101,7 +107,9 @@ describe('portal session controls', () => {
         'Không thể kết nối để đăng xuất. Phiên hiện tại vẫn được giữ.',
       ),
     ).toBeInTheDocument()
-    expect(screen.getByText('Facility Staff')).toBeInTheDocument()
+    expect(screen.getByLabelText('Tài khoản đang đăng nhập')).toHaveTextContent(
+      'Facility Staff',
+    )
     expect(useAuthStore.getState().user).toEqual(staffUser)
   })
 
@@ -121,16 +129,21 @@ describe('portal session controls', () => {
         'Máy chủ chưa thể hoàn tất đăng xuất. Phiên hiện tại vẫn được giữ.',
       ),
     ).toBeInTheDocument()
-    expect(screen.getByText('Facility Staff')).toBeInTheDocument()
+    expect(screen.getByLabelText('Tài khoản đang đăng nhập')).toHaveTextContent(
+      'Facility Staff',
+    )
     expect(useAuthStore.getState().user).toEqual(staffUser)
   })
 
-  it('keeps the existing login entry when there is no authenticated user', () => {
+  it('redirects a guest to internal login instead of rendering the portal shell', async () => {
     useAuthStore.setState({ user: null, status: 'guest', error: null })
-    renderPortal()
-    expect(screen.getByRole('link', { name: /đăng nhập/i })).toHaveAttribute(
-      'href',
-      '/portal/login',
-    )
+    const router = renderPortal()
+    expect(
+      await screen.findByRole('heading', { name: 'Chào mừng trở lại' }),
+    ).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/portal/login')
+    expect(
+      screen.queryByRole('navigation', { name: 'Điều hướng nội bộ' }),
+    ).not.toBeInTheDocument()
   })
 })

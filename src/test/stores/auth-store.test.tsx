@@ -10,6 +10,7 @@ import {
   finishSessionTransition,
 } from '@/api/session-generation'
 import { useAuthStore } from '@/stores/auth-store'
+import { queryClient } from '@/config/query-client'
 
 function envelope<T>(data: T, statusCode = 200) {
   return {
@@ -163,6 +164,30 @@ describe('authentication session lifecycle', () => {
       user: { id: 'user-1', permissions: [] },
       error: null,
     })
+  })
+
+  it('clears server-state cache before switching authenticated accounts', async () => {
+    const previousDataKey = ['private', 'facility', 'private-data'] as const
+    queryClient.setQueryData(previousDataKey, { account: 'previous-user' })
+    server.use(
+      http.post('*/auth/login', () =>
+        HttpResponse.json(
+          envelope({
+            user: backendUser({ id: 'user-2', role: 'system_admin' }),
+            tokens: tokenData(),
+          }),
+        ),
+      ),
+    )
+
+    const result = await useAuthStore
+      .getState()
+      .signIn({ email: 'admin@example.com', password: 'secret' })
+
+    expect(result.success).toBe(true)
+    expect(useAuthStore.getState().user?.id).toBe('user-2')
+    expect(queryClient.getQueryData(previousDataKey)).toBeUndefined()
+    queryClient.clear()
   })
 
   it.each([

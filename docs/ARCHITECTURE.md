@@ -7,7 +7,7 @@
 - Feature modules own their types, UI, and eventual API integration; shared UI stays small.
 - The API client sends cookies with requests. Browser storage is not used for authentication tokens.
 - Frontend access checks are a usability layer. The backend remains responsible for authorization on every API and resource.
-- Authentication UI calls the existing backend session API through the Zustand auth store. RBAC, mock users, and business data remain outside this scope.
+- Authentication UI calls the existing backend session API through the Zustand auth store. Internal role guards control frontend navigation only; backend authorization remains authoritative.
 
 ## Structure
 
@@ -19,13 +19,14 @@ src/
 │   ├── shared/              # Reusable application-level UI
 │   ├── ui/                  # shadcn/ui-compatible primitives
 │   └── auth/                # Shared login form and post-login context notice
-├── config/                  # Application configuration
+├── config/                  # Application and QueryClient configuration
 ├── layouts/                 # Public, customer, and internal portal shells
 ├── lib/utils.ts             # shadcn/ui class-name helper
 ├── models/                  # AuthUser and backend authentication DTOs
 ├── pages/                   # Page-level React components
 ├── routes/                  # React Router definitions
 ├── stores/                  # Zustand stores and session state
+├── utils/query-keys.ts      # Entity/filter/facility-scoped key factory
 ├── test/
 │   ├── api/                  # API client, contracts, and auth service tests
 │   ├── pages/                # Page rendering tests
@@ -40,6 +41,8 @@ src/
 
 All `*.test.ts` and `*.test.tsx` files live under `src/test/`; test infrastructure also stays there. Domain feature folders are introduced when a domain has enough implementation to own its logic, rather than being created as empty placeholders.
 
+The internal portal foundation adds a shared page header, explicit module placeholders, a safe portal error boundary, accessible table/badge/skeleton/dialog/confirmation/toast primitives, and responsive role-filtered navigation. Existing `FormField` remains the starting pattern for React Hook Form + Zod validation. The migration inventory, endpoint differences, and follow-up rules are in [INTERNAL_MIGRATION_PLAN.md](INTERNAL_MIGRATION_PLAN.md).
+
 ## API and environment
 
 `src/api/client.ts` creates the shared Axios instance using `VITE_API_BASE_URL` and `withCredentials: true`. Copy `.env.example` to `.env.local` for local development. Environment variables prefixed with `VITE_` are public; never put secrets there.
@@ -53,6 +56,8 @@ Backend DTOs stay separate from the frontend `AuthUser`. The adapter accepts onl
 ## Session lifecycle
 
 The Zustand auth store keeps `user`, `status`, and normalized `error` in memory. Status moves through `idle`, `checking`, `authenticated`, `guest`, and `error`. The application initializer starts bootstrap without holding up public route rendering. Bootstrap calls `/auth/me`; an eligible 401 is handled by the shared Axios refresh coordinator, which refreshes and retries the original GET once. A final 401 becomes `guest`; network, timeout, malformed-response, and server failures become retryable `error` states. `retryBootstrap()` reruns the same flow.
+
+TanStack Query owns server-state caching; Zustand remains limited to authentication state. Queries default to a 30-second stale time, a five-minute garbage-collection time, no focus refetch, and at most one retry for network/timeout or 5xx Axios errors. 4xx responses are not retried; mutations are not retried. New domain keys use an entity root plus normalized filters and `facilityId` where the API is scoped. Successful writes invalidate the entity keys they affect. The current app clears its QueryClient cache when sign-in starts, sign-out succeeds, a session is invalidated, or a confirmed identity changes during bootstrap. This deliberately removes cached server data before another account can use the portal.
 
 Only requests explicitly marked `authRefreshEligible` can trigger refresh, and only GET, HEAD, or OPTIONS requests qualify. Login, logout, refresh, registration, OTP, and send-OTP paths are excluded. 403, other statuses, network failures, and timeouts never trigger refresh. Concurrent eligible 401s share one refresh promise. Each original request is replayed no more than once. POST, PATCH, and DELETE are never replayed automatically, even if a caller sets the eligibility option.
 
@@ -72,9 +77,9 @@ After login, `src/utils/login-destination.ts` maps the normalized single role to
 
 Login errors are translated to safe Vietnamese messages by category: malformed requests, invalid credentials, forbidden accounts, network/CORS failures, timeouts, server failures, and unexpected errors remain distinguishable. Backend stack traces and raw error objects are not rendered. MSW tests exercise these paths with backend-shaped envelopes. Real browser login remains blocked/not verified because the existing CORS check for `http://localhost:5173` found HTTP 500 responses without credentialed CORS headers; no production credentials were used.
 
-The internal role routing regression suite uses MSW and verifies the current backend role strings: `system_admin` → `SYSTEM_ADMIN` → `/portal/admin`, `business_ops_manager` → `BUSINESS_OPS_MANAGER` → `/portal/ops`, `facility_manager` → `FACILITY_MANAGER` → `/portal/manager`, and `facility_staff` → `FACILITY_STAFF` → `/portal/staff`. A `customer` returned through the internal entry point is sent to `/account`; unknown roles fail closed. These results are automated frontend checks, not confirmation of real backend accounts or server authorization.
+The internal route guards consume only normalized roles returned by the backend. Unauthenticated portal requests go to `/portal/login`; session checking shows a pending state; bootstrap network failures show an explicit retry screen; incompatible roles receive a 403 view. Role defaults are `/portal/admin/users`, `/portal/ops/facilities`, `/portal/manager/storage-units`, and `/portal/staff/contracts`. If a user has multiple internal roles, `/portal` offers only those available workspaces instead of selecting one arbitrarily. The backend currently returns one role string, so multi-role selection is future-ready structure only. These frontend checks do not establish server authorization, permissions, or facility scope.
 
-Within `/portal/*`, `PortalLayout` displays the authenticated user's provided name or email and calls the store's `signOut()` action. It disables the control while the request is pending, navigates to `/portal/login` after a successful result, and shows a safe error while retaining the identity when network or server errors leave the store session intact. A logout 401 is treated by the store as expired-session cleanup. Without a user in the store, the existing internal login link remains visible. This UI behavior does not add route protection; server-side authorization remains required.
+Within `/portal/*`, `PortalLayout` shows navigation only for roles returned in the normalized user, marks the current route, and supports a responsive mobile menu. It displays the provided name/email and calls the store's `signOut()` action. It disables the control while the request is pending, navigates to `/portal/login` after success, and shows safe feedback while retaining the identity when a network/server error leaves the session intact. A logout 401 is treated by the store as expired-session cleanup. Role guards prevent incompatible or unverified frontend content from rendering; server-side authorization remains required.
 
 Generation checks protect frontend state and request replay decisions, but an already in-flight backend response may still apply a `Set-Cookie` header after logout or a newer sign-in. The browser controls cookie application; the frontend cannot cancel a response that the server has already produced. This limitation also applies to an older in-flight refresh response: the client can ignore its application-level result, but cannot prevent the browser from processing a `Set-Cookie` header already sent by the server.
 
@@ -82,16 +87,19 @@ Cookie behavior depends on the backend CORS policy allowing credentials for the 
 
 ## Route map
 
-| Area     | Route                                                                      | Phase 1 behavior                        |
-| -------- | -------------------------------------------------------------------------- | --------------------------------------- |
-| Public   | `/`                                                                        | Static landing page                     |
-| Public   | `/facilities`                                                              | Placeholder                             |
-| Customer | `/auth/login`                                                              | Shared validated login form             |
-| Customer | `/auth/register`                                                           | Placeholder                             |
-| Customer | `/account/*`                                                               | Customer shell with placeholder content |
-| Internal | `/portal/login`                                                            | Shared validated staff login form       |
-| Internal | `/portal`                                                                  | Internal workspace placeholder          |
-| Internal | `/portal/admin/*`, `/portal/ops/*`, `/portal/manager/*`, `/portal/staff/*` | Role-area placeholders                  |
+| Area             | Route                                                                                                                                                           | Phase 1 behavior                                                            |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Public           | `/`                                                                                                                                                             | Static landing page                                                         |
+| Public           | `/facilities`                                                                                                                                                   | Placeholder                                                                 |
+| Customer         | `/auth/login`                                                                                                                                                   | Shared validated login form                                                 |
+| Customer         | `/auth/register`                                                                                                                                                | Placeholder                                                                 |
+| Customer         | `/account/*`                                                                                                                                                    | Customer shell with placeholder content                                     |
+| Internal         | `/portal/login`                                                                                                                                                 | Shared validated staff login form                                           |
+| Internal         | `/portal`                                                                                                                                                       | Redirects to the role default or shows workspace choices for multiple roles |
+| Admin            | `/portal/admin/users`, `/portal/admin/audit-logs`                                                                                                               | Guarded placeholders; default is users                                      |
+| Operations       | `/portal/ops/facilities`, `/portal/ops/unit-types`, `/portal/ops/amenities`, `/portal/ops/offerings`, `/portal/ops/facility-amenities`, `/portal/ops/approvals` | Guarded placeholders; default is facilities                                 |
+| Facility Manager | `/portal/manager/storage-units`, `/portal/manager/reservations`, `/portal/manager/contracts`, `/portal/manager/contracts/:id`, `/portal/manager/requests`       | Guarded placeholders; default is storage units                              |
+| Facility Staff   | `/portal/staff/contracts`, `/portal/staff/contracts/:id`, `/portal/staff/storage-units`                                                                         | Guarded placeholders; default is contracts                                  |
 
 ## Roadmap boundary
 
@@ -101,6 +109,7 @@ Cookie behavior depends on the backend CORS policy allowing credentials for the 
 4. TASK 02.R — frontend folder organization (complete).
 5. TASK 02.3 — browser integration checked from localhost; blocked on backend CORS behavior and a securely provided test account. Deployed-origin cookie verification remains pending.
 6. TASK 04.1 — customer and shared internal login UI, integrated with the existing session action; real-browser login is still blocked by CORS.
-7. Phase 3 — RBAC and protected routes, only after backend roles, permissions, and facility-scope contracts are agreed.
-8. Later authentication work — registration, OTP, password recovery, and broader integration coverage after the backend contracts and CORS setup are ready.
-9. Later QA — repository/CI preparation.
+7. TASK 05.0 — internal portal foundation, role guards, route placeholders, shared shell, and query cache.
+8. TASK 05.1 — storage-unit views after verifying facility scope and storage-unit request/response contracts.
+9. Later modules — migrate one domain at a time only after backend endpoint, payload, authorization, and facility scope are verified. Reservation action mismatches are documented in [INTERNAL_MIGRATION_PLAN.md](INTERNAL_MIGRATION_PLAN.md).
+10. Later QA — repository/CI preparation and browser cookie verification after backend CORS is corrected.

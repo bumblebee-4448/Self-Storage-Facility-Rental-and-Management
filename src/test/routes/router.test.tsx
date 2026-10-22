@@ -34,7 +34,9 @@ describe('application route layouts and access', () => {
       screen.getByRole('link', { name: 'Haven trang chủ' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: /không gian lưu trữ linh hoạt cho mọi nhu cầu/i }),
+      screen.getByRole('heading', {
+        name: /không gian lưu trữ linh hoạt cho mọi nhu cầu/i,
+      }),
     ).toBeInTheDocument()
   })
 
@@ -49,14 +51,14 @@ describe('application route layouts and access', () => {
   it('redirects a guest from a protected customer route to customer login', async () => {
     renderRoute('/account/profile')
     expect(
-      await screen.findByRole('heading', { name: 'Đăng nhập tài khoản' }),
+      await screen.findByRole('heading', { name: 'Chào mừng trở lại' }),
     ).toBeInTheDocument()
   })
 
   it('protects reservation creation behind the customer login flow', async () => {
     renderRoute('/reservations/new?facilityId=facility-1&storageUnitId=unit-1')
     expect(
-      await screen.findByRole('heading', { name: 'Đăng nhập tài khoản' }),
+      await screen.findByRole('heading', { name: 'Chào mừng trở lại' }),
     ).toBeInTheDocument()
   })
 
@@ -69,12 +71,12 @@ describe('application route layouts and access', () => {
   })
 
   it.each([
-    ['/portal/admin/users', 'SYSTEM_ADMIN', 'Quản trị hệ thống'],
-    ['/portal/ops/reports', 'BUSINESS_OPS_MANAGER', 'Vận hành doanh nghiệp'],
-    ['/portal/manager/facilities', 'FACILITY_MANAGER', 'Quản lý cơ sở'],
-    ['/portal/staff/units', 'FACILITY_STAFF', 'Nhân viên cơ sở'],
+    ['/portal/admin/users', 'SYSTEM_ADMIN', 'Người dùng'],
+    ['/portal/ops/facilities', 'BUSINESS_OPS_MANAGER', 'Cơ sở'],
+    ['/portal/manager/storage-units', 'FACILITY_MANAGER', 'Phòng kho'],
+    ['/portal/staff/contracts', 'FACILITY_STAFF', 'Hợp đồng'],
   ] as const)(
-    'renders the role-specific workspace for %s',
+    'renders the role-specific module for %s',
     (path, role, title) => {
       renderRoute(path, role)
       expect(screen.getByRole('heading', { name: title })).toBeInTheDocument()

@@ -97,7 +97,7 @@ describe('account profile', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Cập nhật mật khẩu' }))
     expect(
-      await screen.findByRole('heading', { name: 'Đăng nhập tài khoản' }),
+      await screen.findByRole('heading', { name: 'Chào mừng trở lại' }),
     ).toBeInTheDocument()
     expect(payload).toEqual({
       currentPassword: 'old-secret',

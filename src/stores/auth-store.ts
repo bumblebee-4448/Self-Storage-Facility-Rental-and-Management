@@ -9,6 +9,7 @@ import type { LoginRequest, RegisterRequest } from '@/models/backend-auth'
 import type { AuthUser } from '@/models/auth'
 import { normalizeApiError } from '@/api/errors'
 import type { NormalizedApiError } from '@/api/errors'
+import { clearSessionQueryCache } from '@/config/query-client'
 import { registerSessionInvalidatedOperation } from '@/api/refresh-coordinator'
 import {
   beginSessionTransition,
@@ -60,6 +61,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     if (get().status === 'authenticated' && get().user) {
       return Promise.resolve()
     }
+    const previousUserId = get().user?.id
     const epoch = getSessionGeneration()
     if (bootstrapFlight?.epoch === epoch) return bootstrapFlight.promise
 
@@ -68,6 +70,9 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       try {
         const user = await getCurrentUser()
         if (getSessionGeneration() !== epoch) return
+        if (previousUserId && previousUserId !== user.id) {
+          clearSessionQueryCache()
+        }
         set({ user, status: 'authenticated', error: null })
       } catch (cause) {
         if (getSessionGeneration() !== epoch) return
@@ -87,6 +92,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   signIn: async (credentials) => {
     const epoch = beginSessionTransition()
+    clearSessionQueryCache()
     set({ user: null, status: 'checking', error: null })
     try {
       const user = await login(credentials)
@@ -109,6 +115,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   signUp: async (payload) => {
     const epoch = beginSessionTransition()
+    clearSessionQueryCache()
     set({ user: null, status: 'checking', error: null })
     try {
       const user = await registerAccount(payload)
@@ -131,6 +138,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   invalidateSession: () => {
     const epoch = beginSessionTransition()
+    clearSessionQueryCache()
     set({ user: null, status: 'guest', error: null })
     finishSessionTransition(epoch)
   },
@@ -144,6 +152,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       if (getSessionGeneration() !== epoch) {
         return { success: false, error: supersededResult() }
       }
+      clearSessionQueryCache()
       set({ user: null, status: 'guest', error: null })
       finishSessionTransition(epoch)
       return { success: true, value: undefined }
@@ -153,6 +162,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       }
       const error = normalizeApiError(cause)
       if (error.kind === 'http' && error.status === 401) {
+        clearSessionQueryCache()
         set({ user: null, status: 'guest', error: null })
         finishSessionTransition(epoch)
         return { success: true, value: undefined }
@@ -170,6 +180,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 registerSessionInvalidatedOperation((failedGeneration) => {
   if (getSessionGeneration() !== failedGeneration) return
   const invalidatedGeneration = beginSessionTransition()
+  clearSessionQueryCache()
   useAuthStore.setState({ user: null, status: 'guest', error: null })
   finishSessionTransition(invalidatedGeneration)
 })

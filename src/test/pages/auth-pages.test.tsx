@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
@@ -27,22 +27,24 @@ const tokenData = {
   familyId: 'family-1',
 }
 
-function renderAt(path: string) {
+async function renderAt(path: string) {
   useAuthStore.setState({ user: null, status: 'guest', error: null })
   const router = createMemoryRouter(routeObjects, { initialEntries: [path] })
-  return { router, ...render(<RouterProvider router={router} />) }
+  const result = render(<RouterProvider router={router} />)
+  await waitFor(() =>
+    expect(screen.queryByText('Đang tải trang…')).not.toBeInTheDocument(),
+  )
+  return { router, ...result }
 }
 
 describe('authentication pages', () => {
   it('validates login fields before sending a request', async () => {
     const user = userEvent.setup()
-    renderAt('/auth/login')
-    await screen.findByRole('heading', { name: 'Đăng nhập tài khoản' })
+    await renderAt('/auth/login')
+    await screen.findByRole('heading', { name: 'Chào mừng trở lại' })
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
-    expect(await screen.findByText('Nhập email hợp lệ.')).toBeInTheDocument()
-    expect(
-      screen.getByText('Mật khẩu phải có ít nhất 6 ký tự.'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Vui lòng nhập email.')).toBeInTheDocument()
+    expect(screen.getByText('Vui lòng nhập mật khẩu.')).toBeInTheDocument()
   })
 
   it('signs in with the existing auth store and routes from the verified role', async () => {
@@ -52,8 +54,8 @@ describe('authentication pages', () => {
         HttpResponse.json(envelope({ user: backendUser(), tokens: tokenData })),
       ),
     )
-    renderAt('/auth/login')
-    await screen.findByRole('heading', { name: 'Đăng nhập tài khoản' })
+    await renderAt('/auth/login')
+    await screen.findByRole('heading', { name: 'Chào mừng trở lại' })
     await user.type(screen.getByLabelText('Email'), 'customer@example.com')
     await user.type(screen.getByLabelText('Mật khẩu'), 'secret123')
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
@@ -82,20 +84,20 @@ describe('authentication pages', () => {
         ),
       ),
     )
-    renderAt('/auth/login')
-    await screen.findByRole('heading', { name: 'Đăng nhập tài khoản' })
+    await renderAt('/auth/login')
+    await screen.findByRole('heading', { name: 'Chào mừng trở lại' })
     await user.type(screen.getByLabelText('Email'), 'customer@example.com')
     await user.type(screen.getByLabelText('Mật khẩu'), 'wrongpass')
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Thông tin đăng nhập không chính xác',
+      'Email hoặc mật khẩu không chính xác.',
     )
     expect(useAuthStore.getState().status).toBe('error')
   })
 
   it('requires terms/privacy acknowledgement and validates registration fields', async () => {
     const user = userEvent.setup()
-    renderAt('/auth/register')
+    await renderAt('/auth/register')
     await screen.findByRole('heading', { name: 'Bắt đầu với Haven' })
     await user.click(screen.getByRole('button', { name: 'Tạo tài khoản' }))
     expect(
@@ -125,7 +127,7 @@ describe('authentication pages', () => {
         )
       }),
     )
-    renderAt('/auth/register')
+    await renderAt('/auth/register')
     await screen.findByRole('heading', { name: 'Bắt đầu với Haven' })
     await user.type(screen.getByLabelText('Họ và tên'), 'Nguyễn An')
     await user.type(screen.getByLabelText('Email'), 'customer@example.com')
@@ -162,7 +164,7 @@ describe('authentication pages', () => {
         )
       }),
     )
-    renderAt('/auth/forgot-password')
+    await renderAt('/auth/forgot-password')
     await screen.findByRole('heading', { name: 'Đặt lại mật khẩu' })
     await user.type(screen.getByLabelText('Email'), 'customer@example.com')
     await user.click(screen.getByRole('button', { name: 'Gửi mã đặt lại' }))
@@ -187,7 +189,7 @@ describe('authentication pages', () => {
         return HttpResponse.json(envelope({ message: 'Password reset.' }))
       }),
     )
-    renderAt('/auth/reset-password?email=customer%40example.com')
+    await renderAt('/auth/reset-password?email=customer%40example.com')
     await screen.findByRole('heading', { name: 'Tạo mật khẩu mới' })
     await user.type(screen.getByLabelText('Mã OTP'), '123456')
     await user.type(screen.getByLabelText('Mật khẩu mới'), 'newsecret')
@@ -214,16 +216,17 @@ describe('authentication pages', () => {
         ),
       ),
     )
-    renderAt('/portal/login')
-    await screen.findByRole('heading', { name: 'Đăng nhập nhân viên' })
+    const { router } = await renderAt('/portal/login')
+    await screen.findByRole('form', { name: 'Đăng nhập nhân viên' })
     await user.type(screen.getByLabelText('Email'), 'customer@example.com')
     await user.type(screen.getByLabelText('Mật khẩu'), 'secret123')
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
     expect(
-      await screen.findByRole('heading', { name: 'Nhân viên cơ sở' }),
+      await screen.findByRole('heading', { name: 'Hợp đồng' }),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('link', { name: 'Quản trị hệ thống' }),
     ).not.toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/portal/staff/contracts')
   })
 })
