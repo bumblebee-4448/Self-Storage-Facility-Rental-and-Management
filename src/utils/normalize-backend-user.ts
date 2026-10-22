@@ -8,6 +8,7 @@ const backendUserSchema = z.object({
   _id: z.string().trim().min(1).optional(),
   email: z.string().email(),
   name: z.string().optional(),
+  phoneNumber: z.string().optional(),
   role: z.string().min(1),
   assignedFacilityId: z.string().trim().min(1).nullable().optional(),
 })
@@ -21,28 +22,27 @@ export class UserNormalizationError extends Error {
 
 export function normalizeBackendUser(input: BackendAuthUser): AuthUser {
   const parsed = backendUserSchema.safeParse(input)
-  if (!parsed.success) {
+  if (!parsed.success)
     throw new UserNormalizationError('Backend user response is invalid.')
-  }
 
   const id = parsed.data.id ?? parsed.data._id
-  if (!id) {
+  if (!id)
     throw new UserNormalizationError(
       'Backend user response is missing an identifier.',
     )
-  }
-
   const role = normalizeBackendRole(parsed.data.role)
-  if (!role) {
+  if (!role)
     throw new UserNormalizationError(
       'Backend user response contains an unknown role.',
     )
-  }
 
   return {
     id,
     email: parsed.data.email,
     ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+    ...(parsed.data.phoneNumber !== undefined
+      ? { phoneNumber: parsed.data.phoneNumber }
+      : {}),
     roles: [role],
     permissions: [],
     ...(parsed.data.assignedFacilityId !== undefined
