@@ -3,15 +3,26 @@ import {
   Box,
   Building2,
   LayoutDashboard,
+  LogIn,
   LogOut,
-  Menu,
   ShieldCheck,
   X,
 } from 'lucide-react'
+import { useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { getPublicErrorMessage } from '@/api/error-message'
+import { LoginRedirectNotice } from '@/components/auth/LoginRedirectNotice'
 import { useAuthStore } from '@/stores/auth-store'
-import type { Role } from '@/models/auth'
+import type { NormalizedApiError } from '@/api/errors'
+
+function logoutErrorMessage(error: NormalizedApiError): string {
+  if (error.kind === 'network')
+    return 'Không thể kết nối để đăng xuất. Phiên hiện tại vẫn được giữ.'
+  if (error.kind === 'timeout')
+    return 'Yêu cầu đăng xuất đã hết thời gian chờ. Phiên hiện tại vẫn được giữ.'
+  if (error.kind === 'http' && error.status >= 500)
+    return 'Máy chủ chưa thể hoàn tất đăng xuất. Phiên hiện tại vẫn được giữ.'
+  return 'Không thể đăng xuất. Vui lòng thử lại.'
+}
 
 const navItems: {
   label: string
@@ -57,40 +68,25 @@ export function PortalLayout() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const signOut = useAuthStore((state) => state.signOut)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [logoutError, setLogoutError] = useState('')
-  const role = user?.roles[0]
-  const visibleItems = navItems.filter((item) => item.role === role)
-  async function handleSignOut() {
-    setLogoutError('')
-    const result = await signOut()
-    if (result.success) navigate('/portal/login', { replace: true })
-    else setLogoutError(getPublicErrorMessage(result.error))
+  const [logoutPending, setLogoutPending] = useState(false)
+  const [logoutError, setLogoutError] = useState<string | null>(null)
+
+  async function handleLogout() {
+    if (logoutPending) return
+    setLogoutPending(true)
+    setLogoutError(null)
+    try {
+      const result = await signOut()
+      if (result.success) {
+        navigate('/portal/login', { replace: true })
+      } else {
+        setLogoutError(logoutErrorMessage(result.error))
+      }
+    } finally {
+      setLogoutPending(false)
+    }
   }
-  function navigation(className = '') {
-    return (
-      <nav aria-label="Điều hướng cổng nội bộ" className={className}>
-        {visibleItems.map(({ label, to, icon: Icon }) => {
-          const active =
-            to === '/portal'
-              ? location.pathname === to
-              : location.pathname === to ||
-                location.pathname.startsWith(`${to}/`)
-          return (
-            <Link
-              key={to}
-              onClick={() => setMenuOpen(false)}
-              to={to}
-              className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${active ? 'bg-[#edf3ed] font-medium text-[#244431]' : 'text-[#68736b] hover:bg-[#f7f8f6]'}`}
-            >
-              <Icon size={17} strokeWidth={1.8} />
-              {label}
-            </Link>
-          )
-        })}
-      </nav>
-    )
-  }
+
   return (
     <div className="min-h-screen bg-[#f4f6f2] text-[#202521] lg:grid lg:grid-cols-[248px_1fr]">
       <aside className="hidden border-r border-[#e5e9e2] bg-white px-5 py-6 lg:flex lg:flex-col">
@@ -126,51 +122,44 @@ export function PortalLayout() {
               {role ? roleLabels[role] : 'Không gian làm việc'}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="hidden text-right sm:block">
-              <span className="block text-sm font-medium">
-                {user?.name ?? user?.email}
+          {user ? (
+            <div className="flex items-center gap-3">
+              <span
+                className="hidden max-w-48 truncate text-sm text-[#46534a] sm:block"
+                title={user.email}
+                aria-label="Tài khoản đang đăng nhập"
+              >
+                {user.name || user.email}
               </span>
-              <span className="text-muted-foreground text-xs">
-                {role ? roleLabels[role] : ''}
-              </span>
-            </span>
-            <button
-              type="button"
-              onClick={() => void handleSignOut()}
-              className="hidden items-center gap-2 rounded-full border border-[#dfe5dd] px-4 py-2 text-sm text-[#46534a] transition hover:bg-[#f6f8f5] sm:inline-flex"
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={logoutPending}
+                aria-busy={logoutPending}
+                className="inline-flex items-center gap-2 rounded-full border border-[#dfe5dd] px-4 py-2 text-sm text-[#46534a] transition hover:bg-[#f6f8f5] disabled:cursor-wait disabled:opacity-60"
+              >
+                <LogOut size={15} />
+                {logoutPending ? 'Đang đăng xuất…' : 'Đăng xuất'}
+              </button>
+            </div>
+          ) : (
+            <Link
+              to="/portal/login"
+              className="inline-flex items-center gap-2 rounded-full border border-[#dfe5dd] px-4 py-2 text-sm text-[#46534a] transition hover:bg-[#f6f8f5]"
             >
-              <LogOut size={15} /> Đăng xuất
-            </button>
-            <button
-              type="button"
-              onClick={() => setMenuOpen((open) => !open)}
-              aria-label={menuOpen ? 'Đóng điều hướng' : 'Mở điều hướng'}
-              aria-expanded={menuOpen}
-              className="grid size-10 place-items-center rounded-full border border-[#dfe5dd] lg:hidden"
-            >
-              {menuOpen ? <X size={18} /> : <Menu size={18} />}
-            </button>
-          </div>
+              <LogIn size={15} /> Đăng nhập <ArrowUpRight size={14} />
+            </Link>
+          )}
         </header>
-        {menuOpen && (
-          <div className="border-b border-[#e5e9e2] bg-white p-4 lg:hidden">
-            {navigation('space-y-1')}
-            <button
-              type="button"
-              onClick={() => void handleSignOut()}
-              className="mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm"
-            >
-              <LogOut size={17} /> Đăng xuất
-            </button>
-          </div>
-        )}
-        {logoutError && (
-          <p role="alert" className="px-6 pt-4 text-sm text-red-700">
-            {logoutError}
-          </p>
-        )}
-        <main className="mx-auto max-w-6xl px-5 py-8 sm:px-10 sm:py-10">
+        <main className="mx-auto max-w-6xl px-6 py-10 sm:px-10">
+          {logoutError && (
+            <p role="alert" className="mb-5 text-sm text-red-700">
+              {logoutError}
+            </p>
+          )}
+          <LoginRedirectNotice
+            key={`${location.pathname}${location.search}${location.hash}`}
+          />
           <Outlet />
         </main>
       </div>

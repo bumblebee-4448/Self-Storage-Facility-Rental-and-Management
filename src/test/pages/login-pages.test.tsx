@@ -62,7 +62,7 @@ describe('customer and internal login pages', () => {
     renderRoute('/portal/login')
 
     expect(
-      screen.getByRole('heading', { name: 'Tiếp tục đến workspace' }),
+      screen.getByRole('heading', { name: 'Chào mừng trở lại' }),
     ).toBeInTheDocument()
     expect(
       screen.getByRole('form', { name: 'Đăng nhập nhân viên' }),
@@ -370,7 +370,7 @@ describe('customer and internal login pages', () => {
 
     await screen.findByRole('alert')
     expect(
-      screen.getByRole('heading', { name: 'Tiếp tục đến workspace' }),
+      screen.getByRole('heading', { name: 'Chào mừng trở lại' }),
     ).toBeInTheDocument()
   })
 
